@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card, Typography, App } from 'antd';
 import { AiOutlineMail, AiOutlineLock, AiOutlineSafety } from 'react-icons/ai';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useRouter } from 'next/navigation';
+import { getDeviceInfo } from '@/lib/commonFun';
+import { doc, setDoc } from 'firebase/firestore';
 
 const { Title } = Typography;
 
@@ -47,6 +49,26 @@ const needsOTPVerification = (email) => {
   const diffDays = (now - lastDate) / (1000 * 60 * 60 * 24);
   return diffDays >= OTP_VALIDITY_DAYS;
 };
+
+async function saveSession(userId, token) {
+  const deviceInfo = getDeviceInfo();
+  const ipRes = await fetch("https://ipapi.co/json/");
+  const locationData = await ipRes.json();
+
+  const session = {
+    ip: locationData.ip,
+    location: `${locationData.city}, ${locationData.region}, ${locationData.country_name}`,
+    pinCode:locationData.postal,
+    device: deviceInfo.device,
+    os: deviceInfo.os,
+    browser: deviceInfo.browser,
+    createdAt: new Date().toISOString(),
+    lastActive: new Date().toISOString(),
+    token,
+  };
+
+  await setDoc(doc(db, "users", userId, "sessions", token), session);
+}
 
 const LoginPage = () => {
     const { message } = App.useApp();
@@ -156,11 +178,15 @@ const router=useRouter()
 
     try {
       // Firebase login
-      await signInWithEmailAndPassword(auth, email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, values.password);
+      const user = userCredential.user;
+      const token = user.stsTokenManager?.accessToken || user.accessToken;
+
+      // Save session info
+      await saveSession(user.uid, token);
+
       message.success("Login Successful!");
-      // router.replace("/"); // Redirect to dashboard or home page
-      window.location.href = "/"; // Redirect to home page
-      // Optionally redirect here, e.g. router.push("/dashboard")
+      window.location.href = "/";
     } catch (error) {
       message.error(error.message || "Login failed.");
     }

@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from "@/lib/AuthProvider";
 import TopBar from './TopBar';
 import SideBar from './SideBar';
+import { db } from '@/lib/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function CustomDashboardLayout({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -11,15 +13,28 @@ export default function CustomDashboardLayout({ children }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Paths that should NOT use the dashboard layout
+  const withoutLayout = ["/auth/login"];
+
+  // Redirect to login if not authenticated and not on login page
+  useEffect(() => {
+    if (!loading && !user && !withoutLayout.includes(pathname)) {
+      router.replace("/auth/login");
+    }
+  }, [user, loading, pathname, router]);
 
   // Close menus when clicking outside
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (showNotifications || showUserMenu) {
-        if (!e.target.closest('.notification-trigger') && 
-            !e.target.closest('.user-menu-trigger') &&
-            !e.target.closest('.notification-content') &&
-            !e.target.closest('.user-menu-content')) {
+        if (
+          !e.target.closest('.notification-trigger') &&
+          !e.target.closest('.user-menu-trigger') &&
+          !e.target.closest('.notification-content') &&
+          !e.target.closest('.user-menu-content')
+        ) {
           setShowNotifications(false);
           setShowUserMenu(false);
         }
@@ -29,6 +44,9 @@ export default function CustomDashboardLayout({ children }) {
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [showNotifications, showUserMenu]);
+
+
+
 
   // Show loading spinner while checking auth state
   if (loading) {
@@ -42,22 +60,22 @@ export default function CustomDashboardLayout({ children }) {
     );
   }
 
-  // If not authenticated, show only the login screen (children)
-  if (!user) {
-    // Redirect to login page if not already there
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth/login")) {
-      router.replace("/auth/login");
-      return null;
-    }
+  // If on a page that doesn't use the dashboard layout, just render children
+  if (withoutLayout.includes(pathname)) {
     return children;
   }
 
-  // If authenticated, show dashboard layout
+  // If not authenticated, don't render anything (redirect handled in useEffect)
+  if (!user) {
+    return null;
+  }
+
+  // Authenticated: show dashboard layout
   return (
     <div className="flex h-screen bg-gray-50">
       <SideBar collapsed={sidebarCollapsed} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar 
+        <TopBar
           sidebarCollapsed={sidebarCollapsed}
           toggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
           showNotifications={showNotifications}

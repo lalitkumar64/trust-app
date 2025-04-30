@@ -27,28 +27,10 @@ const SideBar = ({ collapsed }) => {
       description: 'Overview & analytics'
     },
     { 
-      icon: <FiShield size={18} />, 
-      label: 'Trusts', 
-      link: '/trusts', 
-      description: 'Manage trust accounts' 
-    },
-    { 
       icon: <FiUsers size={18} />, 
       label: 'Members', 
       link: '/members', 
       description: 'Trustees & beneficiaries' 
-    },
-    { 
-      icon: <FiFileText size={18} />, 
-      label: 'Documents', 
-      link: '/documents', 
-      description: 'Files & records' 
-    },
-    { 
-      icon: <FiBarChart2 size={18} />, 
-      label: 'Analytics', 
-      link: '/analytics', 
-      description: 'Reporting & insights' 
     },
     { 
       icon: <FiCreditCard size={18} />, 

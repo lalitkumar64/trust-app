@@ -1,8 +1,11 @@
 "use client";
-import React, { useState } from 'react';
-import { Modal, Form, Input, Button, message, Space, Card, Tooltip, Divider } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Modal, Form, Input, Button, Space, Card, Tooltip, Divider, App } from 'antd';
 import { FiPlusCircle, FiPhone, FiMail, FiMapPin, FiGlobe, FiTrash2, FiEdit2 } from 'react-icons/fi';
 import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin, FaYoutube } from 'react-icons/fa';
+import { collection, addDoc, getDocs, query, doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from '@/lib/AuthProvider';
 
 const dummyData = {
   phones: [
@@ -27,15 +30,95 @@ const dummyData = {
 const Contact = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const { user } = useAuth();
+  const [contactData, setContactData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const {message}=App.useApp();
+  const [contactId, setContactId] = useState(null);
+
+  const fetchContactData = async () => {
+    if (!user?.uid) return;
+    try {
+      const contactRef = collection(db, "users", user.uid, "contact");
+      const querySnapshot = await getDocs(query(contactRef));
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        setContactId(doc.id);
+        setContactData(doc.data());
+      }
+    } catch (error) {
+      console.error("Error fetching contact data:", error);
+      message.error("Failed to load contact information");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    fetchContactData();
+  }, [user]);
 
   const handleSubmit = async (values) => {
+    if (!user?.uid) {
+      message.error("User not authenticated!");
+      return;
+    }
+    
     try {
-      console.log('Form values:', values);
+      setLoading(true);
+      const contactData = {
+        phones: values.phones || [],
+        emails: values.emails || [],
+        address: values.address,
+        website: values.website,
+        socialLinks: {
+          facebook: values.facebook,
+          twitter: values.twitter,
+          instagram: values.instagram,
+          linkedin: values.linkedin,
+          youtube: values.youtube
+        },
+        updatedAt: new Date(),
+      };
+
+      if (contactId) {
+        // Update existing document
+        const docRef = doc(db, "users", user.uid, "contact", contactId);
+        await updateDoc(docRef, contactData);
+      } else {
+        // Create new document
+        const contactRef = collection(db, "users", user.uid, "contact");
+        await addDoc(contactRef, {
+          ...contactData,
+          createdAt: new Date(),
+          createdBy: user.uid
+        });
+      }
+
       message.success('Contact information updated successfully!');
       setIsModalOpen(false);
+      fetchContactData(); // Refresh the data
     } catch (error) {
+      console.error("Error saving contact:", error);
       message.error('Failed to update contact information');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleEdit = () => {
+    form.setFieldsValue({
+      phones: contactData?.phones || [],
+      emails: contactData?.emails || [],
+      address: contactData?.address,
+      website: contactData?.website,
+      ...contactData?.socialLinks
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCancel = () => {
+    form.resetFields();
+    setIsModalOpen(false);
   };
 
   return (
@@ -60,6 +143,7 @@ const Contact = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Phone Numbers Card */}
         <Card 
+          loading={loading}
           title={
             <span className="flex items-center text-lg font-medium">
               <FiPhone className="mr-2 text-[var(--primary-blue)]" /> Contact Numbers
@@ -70,10 +154,7 @@ const Contact = () => {
               <Button 
                 type="text" 
                 icon={<FiEdit2 />} 
-                onClick={() => {
-                  form.setFieldsValue({ phones: dummyData.phones });
-                  setIsModalOpen(true);
-                }}
+                onClick={handleEdit}
                 className="text-[var(--primary-blue)] hover:text-[var(--primary-dark)]"
               />
             </Tooltip>
@@ -81,7 +162,7 @@ const Contact = () => {
           className="shadow-sm hover:shadow-md transition-shadow"
         >
           <div className="space-y-4">
-            {dummyData.phones.map((phone, index) => (
+            {(contactData?.phones || []).map((phone, index) => (
               <div key={index} className="pb-3 border-b last:border-0 border-[var(--gray-200)]">
                 <h4 className="font-medium text-[var(--foreground)]">{phone.personName}</h4>
                 <p className="text-[var(--gray-300)] text-sm">{phone.designation}</p>
@@ -93,6 +174,7 @@ const Contact = () => {
 
         {/* Email & Website Card */}
         <Card 
+          loading={loading}
           title={
             <span className="flex items-center text-lg font-medium">
               <FiMail className="mr-2 text-[var(--primary-blue)]" /> Email & Web
@@ -103,7 +185,7 @@ const Contact = () => {
               <Button 
                 type="text" 
                 icon={<FiEdit2 />} 
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleEdit}
                 className="text-[var(--primary-blue)] hover:text-[var(--primary-dark)]"
               />
             </Tooltip>
@@ -111,19 +193,19 @@ const Contact = () => {
           className="shadow-sm hover:shadow-md transition-shadow"
         >
           <div className="space-y-4">
-            {dummyData.emails.map((email, index) => (
+            {(contactData?.emails || []).map((email, index) => (
               <p key={index} className="text-[var(--foreground)]">{email.email}</p>
             ))}
             <Divider className="my-3" />
             <div className="flex items-center gap-2">
               <FiGlobe className="text-[var(--primary-blue)]" />
               <a 
-                href={dummyData.website} 
+                href={contactData?.website} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-[var(--primary-blue)] hover:underline"
               >
-                {dummyData.website.replace('https://', '')}
+                {contactData?.website?.replace('https://', '') || 'Not set'}
               </a>
             </div>
           </div>
@@ -131,6 +213,7 @@ const Contact = () => {
 
         {/* Address Card */}
         <Card 
+          loading={loading}
           title={
             <span className="flex items-center text-lg font-medium">
               <FiMapPin className="mr-2 text-[var(--primary-blue)]" /> Address
@@ -141,7 +224,7 @@ const Contact = () => {
               <Button 
                 type="text" 
                 icon={<FiEdit2 />} 
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleEdit}
                 className="text-[var(--primary-blue)] hover:text-[var(--primary-dark)]"
               />
             </Tooltip>
@@ -149,12 +232,13 @@ const Contact = () => {
           className="shadow-sm hover:shadow-md transition-shadow"
         >
           <p className="text-[var(--foreground)] whitespace-pre-line">
-            {dummyData.address}
+            {contactData?.address || 'No address set'}
           </p>
         </Card>
 
         {/* Social Links Card */}
         <Card 
+          loading={loading}
           title={
             <span className="flex items-center text-lg font-medium">
               <FiGlobe className="mr-2 text-[var(--primary-blue)]" /> Social Media
@@ -165,7 +249,7 @@ const Contact = () => {
               <Button 
                 type="text" 
                 icon={<FiEdit2 />} 
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleEdit}
                 className="text-[var(--primary-blue)] hover:text-[var(--primary-dark)]"
               />
             </Tooltip>
@@ -173,21 +257,23 @@ const Contact = () => {
           className="shadow-sm hover:shadow-md transition-shadow"
         >
           <div className="grid grid-cols-2 gap-4">
-            {Object.entries(dummyData.socialLinks).map(([platform, url]) => (
-              <a
-                key={platform}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-[var(--foreground)] hover:text-[var(--primary-blue)]"
-              >
-                {platform === 'facebook' && <FaFacebook />}
-                {platform === 'twitter' && <FaTwitter />}
-                {platform === 'instagram' && <FaInstagram />}
-                {platform === 'linkedin' && <FaLinkedin />}
-                {platform === 'youtube' && <FaYoutube />}
-                {platform.charAt(0).toUpperCase() + platform.slice(1)}
-              </a>
+            {Object.entries(contactData?.socialLinks || {}).map(([platform, url]) => (
+              url && (
+                <a
+                  key={platform}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-[var(--foreground)] hover:text-[var(--primary-blue)]"
+                >
+                  {platform === 'facebook' && <FaFacebook />}
+                  {platform === 'twitter' && <FaTwitter />}
+                  {platform === 'instagram' && <FaInstagram />}
+                  {platform === 'linkedin' && <FaLinkedin />}
+                  {platform === 'youtube' && <FaYoutube />}
+                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                </a>
+              )
             ))}
           </div>
         </Card>
@@ -196,7 +282,7 @@ const Contact = () => {
       <Modal
         title={<h3 className="text-xl font-semibold text-[var(--foreground)]">Contact Details</h3>}
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={handleCancel}
         footer={null}
         width={800}
         className="custom-modal"
@@ -355,7 +441,7 @@ const Contact = () => {
 
           <div className="flex justify-end gap-3">
             <Button 
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCancel}
               className="hover:bg-[var(--gray-100)]"
             >
               Cancel
@@ -363,6 +449,7 @@ const Contact = () => {
             <Button 
               type="primary" 
               htmlType="submit"
+              loading={loading}
               className="bg-[var(--primary-blue)] hover:bg-[var(--primary-dark)]"
             >
               Save Changes

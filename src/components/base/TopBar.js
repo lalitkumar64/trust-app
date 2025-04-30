@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+"use client";
+import React, { useEffect, useState } from 'react';
 import { Popover, Modal, Tooltip } from 'antd';
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useRouter } from 'next/navigation';
 import { 
   FiMenu, 
@@ -18,6 +19,7 @@ import {
 import RequestSection from '../common/requestSection';
 import AddProgram from '../common/program';
 import { useAuth } from '@/lib/AuthProvider';
+import { doc, onSnapshot,deleteDoc } from 'firebase/firestore';
 
 const TopBar = ({ 
   sidebarCollapsed, 
@@ -31,12 +33,21 @@ const TopBar = ({
   const [searchFocused, setSearchFocused] = useState(false);
   const router = useRouter();
   const {user}=useAuth()
-  console.log(user,'user')
+
   // Add logout handler
+  const logout=async()=>{
+    await signOut(auth);
+    router.replace('/auth/login');
+  }
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      router.replace('/auth/login');
+      // Remove session from Firestore before logout
+      const userId = user?.uid;
+      const sessionToken = user?.tokens?.accessToken;
+      if (userId && sessionToken) {
+        await deleteDoc(doc(db, "users", userId, "sessions", sessionToken));
+      }
+      logout()
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -145,6 +156,20 @@ const TopBar = ({
       </button>
     </div>
   );
+
+
+  useEffect(() => {
+    const userId = user?.uid;
+    const sessionToken = user?.tokens?.accessToken;
+    const sessionRef = doc(db, "users", userId, "sessions", sessionToken);
+    const unsubscribe = onSnapshot(sessionRef, (doc) => {
+      if (!doc.exists()) {
+        logout()
+      }
+    });
+  
+    return unsubscribe;
+  }, []);
 
   return (
     <>

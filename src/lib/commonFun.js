@@ -1,5 +1,16 @@
 import { message } from "antd";
+import * as UAParser from "ua-parser-js";
 
+export const getDeviceInfo = () => {
+  const parser = new UAParser.UAParser(); // Use UAParser from the imported object
+  const result = parser.getResult();
+console.log(result,'result')
+  return {
+    os: result.os.name + " " + result.os.version || '',
+    browser: result.browser.name + " " + result.browser.version || '',
+    device: result.device.type || "desktop",
+  };
+};
 export  const sendEmail = async(Data)=>{
     try {
         const res = await fetch("/api/email-send", {

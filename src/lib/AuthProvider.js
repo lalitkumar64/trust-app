@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase"; // Make sure db is exported from firebase.js
 import { message } from "antd";
+import { redirect } from "next/navigation";
 
 const AuthContext = createContext();
 
@@ -43,6 +44,13 @@ export function AuthProvider({ children }) {
 
     return () => unsubscribe();
   }, [messageApi]);
+
+  // useEffect(() => {
+  //   if (!loading && !user) {
+  //     messageApi.error("You need to be logged in to access this page");
+  //     redirect("/auth/login");
+  //   }
+  // }, [user, loading, messageApi]);
 
   return (
     <AuthContext.Provider value={{ user, loading, messageApi }}>

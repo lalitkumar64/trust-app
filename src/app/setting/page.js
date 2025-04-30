@@ -1,24 +1,31 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Contact from '@/components/screen/settings/Contact';
 import Organization from '@/components/screen/settings/organization';
 import TeamMembers from '@/components/screen/settings/TeamMembers';
-import { 
-  BsBank2, 
-  BsShieldLock, 
-  BsBell, 
-  BsHeadset, 
-  BsQuestionCircle, 
-  BsInfoCircle,
+import {
+  BsBank2,
+  BsShieldLock,
+  BsHeadset,
   BsPeople,
   BsGear,
-  BsChevronRight
+  BsChevronRight,
+  BsChevronLeft
 } from 'react-icons/bs';
+import { collection, getDocs, query, deleteDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/AuthProvider";
+import Sessions from '@/components/screen/settings/Sessions';
+import PasswordChange from '@/components/screen/settings/PasswordChange';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('organization');
   const [activeSubTab, setActiveSubTab] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const menuItems = [
     {
@@ -26,10 +33,6 @@ const SettingsPage = () => {
       icon: <BsBank2 size={18} />,
       label: 'Organization',
       description: 'Manage trust details and profile',
-      subItems: [
-        { key: 'org-details', label: 'Trust Details' },
-        { key: 'org-roles', label: 'Roles & Permissions' },
-      ]
     },
     {
       key: 'teams',
@@ -49,34 +52,10 @@ const SettingsPage = () => {
       ]
     },
     {
-      key: 'notifications',
-      icon: <BsBell size={18} />,
-      label: 'Notifications',
-      description: 'Configure email and app alerts',
-    },
-    {
-      key: 'preferences',
-      icon: <BsGear size={18} />,
-      label: 'Preferences',
-      description: 'Set your personal preferences',
-    },
-    {
       key: 'contact',
       icon: <BsHeadset size={18} />,
       label: 'Contact Support',
       description: 'Get help from our team',
-    },
-    {
-      key: 'help',
-      icon: <BsQuestionCircle size={18} />,
-      label: 'Help Center',
-      description: 'Browse tutorials and FAQs',
-    },
-    {
-      key: 'about',
-      icon: <BsInfoCircle size={18} />,
-      label: 'About',
-      description: 'System information and updates',
     },
   ];
 
@@ -91,12 +70,12 @@ const SettingsPage = () => {
 
   const getTabTitle = () => {
     const activeMenuItem = menuItems.find(item => item.key === activeTab);
-    
+
     if (activeSubTab && activeMenuItem?.subItems) {
       const activeSubItem = activeMenuItem.subItems.find(item => item.key === activeSubTab);
       return activeSubItem ? activeSubItem.label : activeMenuItem.label;
     }
-    
+
     return activeMenuItem ? activeMenuItem.label : '';
   };
 
@@ -113,41 +92,11 @@ const SettingsPage = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             <h3 className="text-xl font-semibold text-gray-800 mb-6">Security Settings</h3>
             <p className="text-gray-500">Configure your account security options and privacy settings.</p>
-            
+
             {activeSubTab === 'security-password' && (
-              <div className="mt-6">
-                <h4 className="text-lg font-medium text-gray-700 mb-4">Password Management</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                    <input 
-                      type="password" 
-                      className="w-full max-w-md px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                    <input 
-                      type="password" 
-                      className="w-full max-w-md px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                    <input 
-                      type="password" 
-                      className="w-full max-w-md px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
-                    />
-                  </div>
-                  <div className="pt-2">
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                      Update Password
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <PasswordChange />
             )}
-            
+
             {activeSubTab === 'security-2fa' && (
               <div className="mt-6">
                 <h4 className="text-lg font-medium text-gray-700 mb-4">Two-Factor Authentication</h4>
@@ -171,75 +120,15 @@ const SettingsPage = () => {
                 </div>
               </div>
             )}
-            
+
             {activeSubTab === 'security-sessions' && (
-              <div className="mt-6">
-                <h4 className="text-lg font-medium text-gray-700 mb-4">Active Sessions</h4>
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                    <div className="grid grid-cols-12 text-sm font-medium text-gray-500">
-                      <div className="col-span-4">Device</div>
-                      <div className="col-span-3">Location</div>
-                      <div className="col-span-3">Last Active</div>
-                      <div className="col-span-2">Action</div>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-200">
-                    <div className="px-4 py-3">
-                      <div className="grid grid-cols-12">
-                        <div className="col-span-4">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-500">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M13.5 3h-11a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5zm-9.975 8.5v-7h8.95v7h-8.95z"/>
-                                <path d="M7.5 12.5h1v1h-1z"/>
-                              </svg>
-                            </div>
-                            <div className="ml-3">
-                              <div className="text-sm font-medium text-gray-700">Chrome on Windows</div>
-                              <div className="text-xs text-gray-500">Current session</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="col-span-3 flex items-center text-sm text-gray-600">New York, USA</div>
-                        <div className="col-span-3 flex items-center text-sm text-gray-600">Just now</div>
-                        <div className="col-span-2 flex items-center">
-                          <span className="px-2.5 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">Active</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <div className="grid grid-cols-12">
-                        <div className="col-span-4">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-500">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M11 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h6zM5 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H5z"/>
-                                <path d="M8 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
-                              </svg>
-                            </div>
-                            <div className="ml-3">
-                              <div className="text-sm font-medium text-gray-700">Safari on iPhone</div>
-                              <div className="text-xs text-gray-500">Mobile device</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="col-span-3 flex items-center text-sm text-gray-600">Austin, USA</div>
-                        <div className="col-span-3 flex items-center text-sm text-gray-600">2 days ago</div>
-                        <div className="col-span-2 flex items-center">
-                          <button className="text-sm text-red-500 hover:text-red-700 transition-colors">Revoke</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Sessions activeTab={activeTab} activeSubTab={activeSubTab} />
             )}
-            
+
             {!activeSubTab && (
               <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 {menuItems.find(item => item.key === 'security')?.subItems.map((subItem) => (
-                  <div 
+                  <div
                     key={subItem.key}
                     className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                     onClick={() => handleSubTabClick(subItem.key)}
@@ -278,54 +167,93 @@ const SettingsPage = () => {
     }
   };
 
+  // Fetch sessions when security-sessions tab is active
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (activeTab === 'security' && activeSubTab === 'security-sessions' && user?.uid) {
+        setSessionsLoading(true);
+        try {
+          const sessionsRef = collection(db, "users", user.uid, "sessions");
+          const q = query(sessionsRef);
+          const snapshot = await getDocs(q);
+          const data = [];
+          snapshot.forEach(docSnap => {
+            data.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          setSessions(data);
+        } catch (e) {
+          setSessions([]);
+        }
+        setSessionsLoading(false);
+      }
+    };
+    fetchSessions();
+  }, [activeTab, activeSubTab, user]);
+
+  const handleRevokeSession = async (sessionId) => {
+    if (!user?.uid || !sessionId) return;
+    await deleteDoc(doc(db, "users", user.uid, "sessions", sessionId));
+    setSessions(sessions.filter(s => s.id !== sessionId));
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-64px)]">
       {/* Sidebar */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-[calc(100vh-64px)]">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 flex items-center">
+      <div
+        className={`transition-all duration-200 bg-white border-r border-gray-200 flex flex-col h-[calc(100vh-64px)] ${sidebarCollapsed ? 'w-20' : 'w-80'}`}
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className={`flex items-center transition-all duration-200 ${sidebarCollapsed ? 'justify-center w-full' : ''}`}>
             <BsGear className="text-blue-500 mr-2" size={20} />
-            Settings
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Configure your trust management system
-          </p>
+            {!sidebarCollapsed && (
+              <span className="text-lg font-bold text-gray-800">Settings</span>
+            )}
+          </div>
+          <button
+            className="ml-2 p-1 rounded hover:bg-gray-100 transition"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <BsChevronRight size={18} /> : <BsChevronLeft size={18} />}
+          </button>
         </div>
-        
-        <div className="flex-1 overflow-y-auto py-4 px-4">
+
+        <div className="flex-1 overflow-y-auto py-4 px-2">
           <nav className="space-y-1">
             {menuItems.map((item) => (
               <div key={item.key} className="mb-1">
                 <button
                   onClick={() => handleTabClick(item.key)}
-                  className={`w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors ${
+                  className={`w-full flex items-center px-2 py-3 rounded-lg text-left transition-colors ${
                     activeTab === item.key
                       ? 'bg-blue-50 text-blue-700'
                       : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <span 
-                    className={`mr-3 ${activeTab === item.key ? 'text-blue-600' : 'text-gray-500'}`}
+                  <span
+                    className={`mr-3 flex-shrink-0 ${activeTab === item.key ? 'text-blue-600' : 'text-gray-500'}`}
                   >
                     {item.icon}
                   </span>
-                  <div className="flex-1">
-                    <span className="block font-medium">{item.label}</span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
-                      {item.description}
-                    </span>
-                  </div>
-                  {item.subItems && (
-                    <BsChevronRight 
-                      size={14} 
+                  {!sidebarCollapsed && (
+                    <div className="flex-1">
+                      <span className="block font-medium">{item.label}</span>
+                      <span className="block text-xs text-gray-500 mt-0.5">
+                        {item.description}
+                      </span>
+                    </div>
+                  )}
+                  {item.subItems && !sidebarCollapsed && (
+                    <BsChevronRight
+                      size={14}
                       className={`transition-transform ${
                         activeTab === item.key ? 'rotate-90 text-blue-600' : 'text-gray-400'
-                      }`} 
+                      }`}
                     />
                   )}
                 </button>
-                
-                {item.subItems && activeTab === item.key && (
+
+                {item.subItems && activeTab === item.key && !sidebarCollapsed && (
                   <div className="ml-10 mt-1 space-y-1 border-l-2 border-gray-100 pl-3">
                     {item.subItems.map((subItem) => (
                       <button
@@ -346,18 +274,6 @@ const SettingsPage = () => {
             ))}
           </nav>
         </div>
-
-        <div className="p-4 border-t border-gray-200">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-blue-800 mb-1">Need help?</h4>
-            <p className="text-xs text-blue-700">
-              Contact our support team for assistance with settings and configuration.
-            </p>
-            <button className="mt-2 text-xs font-medium text-blue-700 hover:text-blue-800 flex items-center">
-              Contact Support <BsChevronRight size={12} className="ml-1" />
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Main Content */}
@@ -376,9 +292,7 @@ const SettingsPage = () => {
               </>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">{getTabTitle()}</h1>
         </div>
-        
         {renderContent()}
       </div>
     </div>
