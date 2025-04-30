@@ -6,7 +6,7 @@ export const getDeviceInfo = () => {
   const result = parser.getResult();
 console.log(result,'result')
   return {
-    os: result.os.name + " " + result.os.version || '',
+    os: result.os.name ,
     browser: result.browser.name + " " + result.browser.version || '',
     device: result.device.type || "desktop",
   };

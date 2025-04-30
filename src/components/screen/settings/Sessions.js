@@ -83,7 +83,7 @@ const Sessions = ({ activeTab, activeSubTab }) => {
                       </div>
                       <div className="col-span-2">{session.browser}</div>
                       <div className="col-span-2">{session.os}</div>
-                      <div className="col-span-2">{session.location}</div>
+                      <div className="col-span-2">{session.location + "-"+session?.pinCode}</div>
                       <div className="col-span-2">
                         <span className="text-xs text-gray-500">
                           {session.lastActive ? new Date(session.lastActive).toLocaleString() : "-"}
