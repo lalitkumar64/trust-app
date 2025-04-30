@@ -11,6 +11,9 @@ const Sessions = ({ activeTab, activeSubTab }) => {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [revokeSessionId, setRevokeSessionId] = useState(null);
 
+  // Get current session token (assumes it's stored in user.tokens.accessToken)
+  const currentSessionToken = user?.tokens?.accessToken;
+
   // Fetch sessions when security-sessions tab is active
   useEffect(() => {
     const fetchSessions = async () => {
@@ -62,33 +65,45 @@ const Sessions = ({ activeTab, activeSubTab }) => {
             ) : sessions.length === 0 ? (
               <div className="px-4 py-6 text-center text-gray-400">No active sessions found.</div>
             ) : (
-              sessions.map(session => (
-                <div className="px-4 py-3" key={session.id}>
-                  <div className="grid grid-cols-12 items-center">
-                    <div className="col-span-3">
-                      <div className="font-medium text-gray-700">{session.device}</div>
-                    </div>
-                    <div className="col-span-2">{session.browser}</div>
-                    <div className="col-span-2">{session.os}</div>
-                    <div className="col-span-2">{session.location}</div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-gray-500">
-                        {session.lastActive ? new Date(session.lastActive).toLocaleString() : "-"}
-                      </span>
-                    </div>
-                    <div className="col-span-1 flex items-center">
-                      <Button
-                        type="link"
-                        danger
-                        onClick={() => setRevokeSessionId(session.id)}
-                        className="p-0"
-                      >
-                        Revoke
-                      </Button>
+              sessions.map(session => {
+                const isCurrent = session.id === currentSessionToken;
+                return (
+                  <div
+                    className={`px-4 py-3 ${isCurrent ? 'bg-blue-50/80 border-l-4 border-blue-500' : ''}`}
+                    key={session.id}
+                  >
+                    <div className="grid grid-cols-12 items-center">
+                      <div className="col-span-3 flex items-center gap-2">
+                        <div className="font-medium text-gray-700">{session.device}</div>
+                        {isCurrent && (
+                          <span className="ml-2 px-2 py-0.5 rounded bg-blue-500 text-white text-xs font-semibold">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <div className="col-span-2">{session.browser}</div>
+                      <div className="col-span-2">{session.os}</div>
+                      <div className="col-span-2">{session.location}</div>
+                      <div className="col-span-2">
+                        <span className="text-xs text-gray-500">
+                          {session.lastActive ? new Date(session.lastActive).toLocaleString() : "-"}
+                        </span>
+                      </div>
+                      <div className="col-span-1 flex items-center">
+                        <Button
+                          type="link"
+                          danger
+                          disabled={isCurrent}
+                          onClick={() => setRevokeSessionId(session.id)}
+                          className="p-0"
+                        >
+                          Revoke
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
