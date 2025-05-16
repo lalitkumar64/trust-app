@@ -32,8 +32,11 @@ export async function POST(req) {
     if (action === "checkEmail") {
       try {
         await admin.auth().getUserByEmail(email);
+        console.log("User exists:", email);
+        // User exists, return success response
         return NextResponse.json({ exists: true });
       } catch (err) {
+        console.log("User does not exist:", err);
         if (err.code === "auth/user-not-found") {
           return NextResponse.json({ exists: false });
         }
